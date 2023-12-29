@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Wheel of Fortune Bingo</title>
+    <style type="text/css">
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+        }
+
+        #chart {
+        
+            width: 460px;
+            height: 500px;
+          
+        }
+
+        #question {
+       
+            height: 50px;
+            color: white
+         
+        }
+
+        #question h1 {
+            font-size: 50px;
+            font-weight: bold;
+            text-align: center;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+ 
+        }
+
+        text {
+            filter: drop-shadow(1px 1px 5px black); 
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            color: white;
+            pointer-events: none;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container">
+        <div id="question">
+            <h1></h1>
+        </div>
+        <div id="chart"></div>
+    </div>
+
+
+    <audio id="spinSound" src="./sound.mp3" preload="auto"></audio>
+    <audio id="endSound" src="./ring.mp3" preload="auto"></audio>
+
+
+    <script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script type="text/javascript" charset="utf-8">
+        var padding = { top: 20, right: 40, bottom: 0, left: 0 },
+            w = 500 - padding.left - padding.right,
+            h = 500 - padding.top - padding.bottom,
+            r = Math.min(w, h) / 2,
+            rotation = 0,
+            oldrotation = 0,
+            picked = 100000,
+            oldpick = []
+        // color = d3.scale.category20();//category20c()
+
+        var customColorScale = d3.scale.ordinal()
+            .range(["#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728", "#ff9896"]);
+
+        // Usage
+        var color = customColorScale;
+
+        var spinSound = document.getElementById('spinSound');
+        var endSound = document.getElementById('endSound');
+
+
+
+
+        var data = [
+            { "label": "Option 1", "value": 1,probability:"10%" },
+            { "label": "Option 2", "value": 2,probability:"10%" },
+            { "label": "Option 3", "value": 3,probability:"10%" },
+            { "label": "Option 4", "value": 4 },
+            { "label": "Option 5", "value": 5 },
+            { "label": "Option 6", "value": 6 },
+            { "label": "Option 7", "value": 7 },
+            { "label": "Option 8", "value": 8 },
+            { "label": "Option 9", "value": 9 },
+            { "label": "Option 10", "value": 10 },
+            { "label": "Option 11", "value": 11 },
+            { "label": "Option 12", "value": 12 },
+            { "label": "Option 13", "value": 13 },
+            { "label": "Option 14", "value": 14 },
+            { "label": "Option 15", "value": 15 },
+            { "label": "Option 16", "value": 16 },
+        ];
+
+        // Filter options without probability
+        var optionsWithProbability = data.filter(option => option.probability !== undefined);
+        var optionsWithoutProbability = data.filter(option => option.probability === undefined);
+
+        // Calculate total probability from options with specified probability
+        var totalProbability = optionsWithProbability.reduce((total, option) => total + parseFloat(option.probability), 0);
+
+        // Calculate remaining probability to be distributed equally
+        var remainingProbability = 100 - totalProbability;
+        var probabilityPerOption = remainingProbability / optionsWithoutProbability.length;
+
+        // Assign equal probability to options without specified probability
+        optionsWithoutProbability.forEach(option => {
+            option.probability = probabilityPerOption + "%";
+        });
+
+
+        var total = d3.sum(data, function(d) {
+    return parseFloat(d.probability) || 0;
+});
+
+        var cumulativeDegrees = 0;
+
+data.forEach(function(d) {
+    var degrees = (parseFloat(d.probability) / total) * 360;
+    d.degrees = degrees;
+    d.startAngle = cumulativeDegrees;
+    cumulativeDegrees += degrees;
+    d.endAngle = cumulativeDegrees;
+});
+
+        // Now, data contains options with equally distributed probability
+        console.log(data);
+
+
+
+        var totalProbability = 0;
+        var probabilities = data.map(option => {
+            if (option.probability) {
+                totalProbability += parseFloat(option.probability);
+                return totalProbability;
+            } else {
+                return null;
+            }
+        });
+
+
+
+        var svg = d3.select('#chart')
+            .append("svg")
+            .data([data])
+            .attr("width", w + padding.left + padding.right)
+            .attr("height", h + padding.top + padding.bottom);
+
+        var container = svg.append("g")
+            .attr("class", "chartholder")
+            .attr("transform", "translate(" + (w / 2 + padding.left) + "," + (h / 2 + padding.top) + ")");
+        var vis = container
+            .append("g");
+
+        // var pie = d3.layout.pie().sort(null).value(function (d) { return 1; });
+        // // declare an arc generator function
+        // var arc = d3.svg.arc().outerRadius(r);
+
+
+        var pie = d3.layout.pie()
+            .sort(null)
+            .value(function (d) {
+                // Use probability as the value
+                return parseFloat(d.probability) || 0;
+            });
+
+        // Calculate the angles for the slices
+        var angles = pie(data);
+
+
+        
+        // Adjusted arc with non-overlapping slices
+        var arc = d3.svg.arc().innerRadius(0).outerRadius(r).startAngle(function (d) {
+            return d.startAngle;
+        }).endAngle(function (d) {
+            return d.endAngle;
+        });
+
+
+        // select paths, use arc generator to draw
+        var arcs = vis.selectAll("g.slice")
+            .data(pie)
+            .enter()
+            .append("g")
+            .attr("class", "slice");
+
+        arcs.append("path")
+            .attr("fill", function (d, i) { return color(i); })
+            .attr("d", function (d) { return arc(d); });
+
+
+        // add the text
+        arcs.append("text").attr("transform", function (d) {
+            d.innerRadius = 0;
+            d.outerRadius = r;
+            d.angle = (d.startAngle + d.endAngle) / 2;
+            return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")translate(" + (d.outerRadius - 10) + ")";
+        }).attr("font-weight", "bold")
+            .attr("text-anchor", "end")
+            .attr("fill", "white")
+            .text(function (d, i) {
+                return data[i].label;
+            });
+        container.on("click", spin);
+
+        
+        function spin(d) {
+
+            d3.selectAll(".slice path")
+                .attr("opacity", "1");
+
+                arcs.selectAll("text")
+                .attr("opacity", "1");
+
+            var randomValue = Math.random() * totalProbability;
+
+            // Find the option that corresponds to the random number
+            var selectedOption = data.find((option, index) => {
+                return probabilities[index] !== null && randomValue <= probabilities[index];
+            });
+
+            container.on("click", null);
+            spinSound.play();
+
+            //all slices have been seen, all done
+            // console.log("OldPick: " + oldpick.length, "Data length: " + data.length);
+            // if(oldpick.length == data.length){
+            //     console.log("done");
+            //     container.on("click", null);
+            //     return;
+            // }
+            var ps = 360 / data.length,
+                pieslice = Math.round(1440 / data.length),
+                rng = Math.floor((Math.random() * 1440) + 360);
+
+            rotation = (Math.round(rng / ps) * ps);
+
+
+
+
+
+            picked = Math.round(data.length - (rotation % 360) / ps);
+            picked = picked >= data.length ? (picked % data.length) : picked;
+
+            var targetValue = selectedOption.value;
+
+            var targetIndex = data.findIndex(option => option.value === targetValue);
+            var ps = 360 / data.length;
+
+            // Calculate the exact rotation angle to stop at the center of the target option
+            // rotation = 360 * 4 - (targetIndex + 0.5) * ps;
+
+            let selection = data[targetIndex] 
+
+            console.log(">>>>",selection )
+
+
+            rotation = 360 * 4 - (selection.startAngle + (selection.degrees/2))
+            
+            console.log("rotation",(selection.startAngle + (selection.degrees/2)))
+
+            d3.selectAll(".slice path").attr("fill", function (d, i) {
+                return color(i);
+            });
+
+
+
+            vis.transition()
+                .duration(3000)
+                .attrTween("transform", rotTween)
+                .tween("text", function () {
+                    var i = d3.interpolate(oldrotation % 360, rotation);
+                    return function (t) {
+                        var currentRotation = i(t);
+                        var currentPicked = Math.round(data.length - (currentRotation % 360) / ps);
+                        currentPicked = currentPicked >= data.length ? (currentPicked % data.length) : currentPicked;
+                        d3.select("#question h1").text(data[currentPicked].label);
+                    };
+                })
+                .each("end", function () {
+                    // Determine the picked index based on the current rotation
+                    picked = Math.round(data.length - (rotation % 360) / ps - 1);
+                    picked = picked >= data.length ? (picked % data.length) : picked;
+
+                    console.log(picked)
+
+                    d3.selectAll(".slice path")
+                        .attr("opacity", "0.6");
+                        
+
+                    // Set opacity for the selected slice
+                    d3.select(".slice:nth-child(" + (targetIndex + 1) + ") path")
+                        .attr("opacity", "1");
+
+                        arcs.selectAll("text")
+                .attr("opacity", "0.2");
+
+            // Set opacity for the text inside the selected slice
+            arcs.select(".slice:nth-child(" + (targetIndex + 1) + ") text")
+                .attr("opacity", "1");
+
+                    
+
+
+
+                    // Populate question
+                    d3.select("#question h1")
+                        .text(data[targetIndex].label);
+                    oldrotation = 0;
+
+                    spinSound.pause();
+                    spinSound.currentTime = 0;
+
+                    endSound.play();
+
+                    container.on("click", spin);
+                });
+        }
+        
+        
+        svg.append("g")
+            .attr("transform", "translate(" + (w / 2 + padding.left) + "," + (padding.top + 181) + ")")
+            .append("path")
+            .attr("d", "M0," + (-r * .10) + "L" + (r * .05) + ",0L-" + (r * .05) + ",0Z")
+            .style({ "fill": "black" });
+
+
+        //draw spin circle
+        container.append("circle")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", 60)
+            .style({ "fill": "black", "cursor": "pointer" });
+        //spin text
+        container.append("text")
+            .attr("x", 0)
+            .attr("y", 15)
+            .attr("text-anchor", "middle")
+            .text("SPIN")
+            .style({ "font-weight": "bold", "font-size": "30px" });
+
+
+        function rotTween(to) {
+            var i = d3.interpolate(oldrotation % 360, rotation);
+            return function (t) {
+                return "rotate(" + i(t) + ")";
+            };
+        }
+
+
+    </script>
+</body>
+
+</html>
